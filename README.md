@@ -1,4 +1,4 @@
-dom4notify ver. 0.1
+dom4notify ver 0.1
 ==========
 
 A sleekXMPP notifier for Dominions 4
