@@ -1,0 +1,5 @@
+Requires
+---------
+python 2.6
+sleekXMPP
+pyinotify
