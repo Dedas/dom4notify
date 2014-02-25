@@ -14,42 +14,46 @@
 #
 # Copyright Andreas Winker 2014
 
+#ver 0.2
+
 import pyinotify
 import subprocess
 import sys
 import os
 import sleekxmpp
 import logging
-
-#logging.basicConfig(level=logging.DEBUG)
+import time
 
 #FB ACCOUNT INFO
-jid = 'username'
-password = 'password'
+jid = ""
+password = ""
 
 #GAME OPTIONS
 
 #Set game executable and savegame directories
-gexecdir = "game exec dir"
-sgamedir = "savedgames exec dir"
+gexecdir = ""
+sgamedir = ""
+
+#Logging
+logging.basicConfig(filename=sgamedir + "logfile.log",level=logging.DEBUG)
 
 #Set game options
 dgame = "Test_map"
-dplayers = "1"
+dplayers = "2"
 dmap = "silentseas.map"
 dera = "1"
 dhof = "10"
 dind = "5"
 dtoa = "5 0 0"
 drtoa = "5"
-dport = "port"
-dip = "ip"
+dport = "40000"
+dip = "127.0.0.1"
 
 #START GAME
 
 doptions = " -g " + dgame + " --uploadmaxp " + dplayers + " --mapfile " + dmap + " --era " + dera + " --hofsize " + dhof + " --indepstr " + dind + " --thrones " + dtoa + " --requiredap " + drtoa + " --port " + dport
 
-gameinit =  gexecdir + " -S -T --nonationsel --noclientstart" + doptions
+gameinit =  gexecdir + "dom4.sh -S -T --nonationsel --noclientstart" + doptions
 
 subprocess.Popen(gameinit, stdout=subprocess.PIPE, shell=True)
 
@@ -62,53 +66,49 @@ class SendMsgBot(sleekxmpp.ClientXMPP):
         self.add_event_handler("session_start", self.start, threaded=True)
 
     def start(self, event):
-        self.send_presence()
-        self.get_roster()
-        self.send_message(mto=self.recipient,
-        mbody=self.msg,
-        mtype='chat')
-        self.disconnect(wait=True)
+        for self.pnumber in self.recipient:
+            self.send_message(mto=self.pnumber, mbody=self.msg, mtype='chat')
+            time.sleep(1)
+        self.disconnect(wait=False)
 
 #NEW GAME MESSAGE
 if not os.path.isdir(sgamedir + dgame):
 
-	#Query Game Server
-	gamestate = subprocess.Popen(gexecdir + " --tcpquery" + " --ipadr " + dip + " --port " + dport, stdout=subprocess.PIPE, shell=True)
-	(output, error) = gamestate.communicate()
+    #Query Game Server
+    gamestate = subprocess.Popen(gexecdir + "dom4.sh --tcpquery --ipadr " + dip + " --port " + dport, stdout=subprocess.PIPE, shell=True)
+    (output, error) = gamestate.communicate()
 
-	#Check Game Name
-	for cname in output.split(u"\n"):
-		if "Gamename" in cname:
-			gamename = cname.strip()
+    #Check Game Name
+    for cname in output.split(u"\n"):
+        if "Gamename" in cname:
+            gamename = cname.strip()
 
-	#Check Game Status
-	for cstatus in output.split(u"\n"):
-		if "Status" in cstatus:
-			status = cstatus.strip()
+    #Check Game Status
+    for cstatus in output.split(u"\n"):
+        if "Status" in cstatus:
+            status = cstatus.strip()
 
-	#If game is waiting for players
-	for waiting in output.split(u"\n"):
-		if "Waiting" in waiting:
-			msg = gamename[10:] + "\n" + "-" + "\n" + "Select Pretender" 
+    #If game is waiting for players
+    for waiting in output.split(u"\n"):
+        if "Waiting" in waiting:
+            msg = gamename[10:] + "\n" + "-" + "\n" + "Select Pretenders"
 
-	#Player List
-	players = open(dgame + ".txt", "r")
-	to = players.readlines()
-	players.close()
+    #Player List
+    players = open(sgamedir + dgame + ".txt", "r")
+    to = list(players.readlines())
+    players.close()
 
-	#Send Message
-	for pnumber in to:
-		xmpp = SendMsgBot(jid, password, pnumber, unicode(msg))
+    #Send Message
+    xmpp = SendMsgBot(jid, password, to, unicode(msg))
 
-		#FB APP SUPPORT
-		#xmpp.credentials['api_key'] = ''
-		#xmpp.credentials['access_token'] = ''
+    #FB APP SUPPORT
+    #xmpp.credentials['api_key'] = ''
+    #xmpp.credentials['access_token'] = ''
 
-		if xmpp.connect(('chat.facebook.com', 5222)):
-		    xmpp.process(block=True)
-		    #print("Done")
-		else:
-		    print("Unable to connect.")
+    if xmpp.connect(('chat.facebook.com', 5222)):
+        xmpp.process(block=True)
+    else:
+        print("Unable to connect.")
 
 #EVENTHANDLER
 
@@ -117,49 +117,49 @@ mask = pyinotify.IN_DELETE | pyinotify.IN_CREATE | pyinotify.IN_CLOSE_WRITE # Wa
 
 class EventHandler(pyinotify.ProcessEvent):
 
-     def process_IN_CLOSE_WRITE(self, event):
-	suffix = "ftherlnd"	
-	if event.pathname.endswith(suffix):
+    def process_IN_CLOSE_WRITE(self, event):
 
-		#MESSAGE SENDING
-	
-		#Query Game Server
-		gamestate = subprocess.Popen(gexecdir + " --tcpquery" + " --ipadr " + dip + " --port " + dport, stdout=subprocess.PIPE, shell=True)
-		(output, error) = gamestate.communicate()
+        suffix = dgame + "/ftherlnd"
 
-		#Check Game Name
-		for cname in output.split(u"\n"):
-			if "Gamename" in cname:
-				gamename = cname.strip()
+        if event.pathname.endswith(suffix):
 
-		#Check Game Status
-		for cstatus in output.split(u"\n"):
-			if "Status" in cstatus:
-				status = cstatus.strip()
+            #MESSAGE SENDING
 
-		#Check Turn Number
-		for turn in output.split(u"\n"):
-			if "Turn" in turn:
-				msg = gamename[10:] + "\n" + "-" + "\n" + turn.strip()
+            #Query Game Server
+            gamestate = subprocess.Popen(gexecdir + "dom4.sh --tcpquery" + " --ipadr " + dip + " --port " + dport, stdout=subprocess.PIPE, shell=True)
+            (output, error) = gamestate.communicate()
 
-		#Player List
-		players = open(dgame + ".txt", "r")
-		to = players.readlines()
-		players.close()
+            #Check Game Name
+            for cname in output.split(u"\n"):
+                if "Gamename" in cname:
+                    gamename = cname.strip()
 
-		#Send Message
-		for pnumber in to:
-			xmpp = SendMsgBot(jid, password, pnumber, unicode(msg))
+            #Check Game Status
+            for cstatus in output.split(u"\n"):
+                if "Status" in cstatus:
+                    status = cstatus.strip()
 
-			#FB APP SUPPORT
-			#xmpp.credentials['api_key'] = ''
-			#xmpp.credentials['access_token'] = ''
+            #Check Turn Number
+            for turn in output.split(u"\n"):
+                if "Turn" in turn:
+                    msg = gamename[10:] + "\n" + "-" + "\n" + turn.strip()
 
-			if xmpp.connect(('chat.facebook.com', 5222)):
-			    xmpp.process(block=True)
-			    #print("Done")
-			else:
-			    print("Unable to connect.")
+            #Player List
+            players = open(sgamedir + dgame + ".txt", "r")
+            to = list(players.readlines())
+            players.close()
+
+            #Send Message
+            xmpp = SendMsgBot(jid, password, to, unicode(msg))
+
+            #FB APP SUPPORT
+            #xmpp.credentials['api_key'] = ''
+            #xmpp.credentials['access_token'] = ''
+
+            if xmpp.connect(('chat.facebook.com', 5222)):
+                xmpp.process(block=True)
+            else:
+                print("Unable to connect.")
 
 handler = EventHandler()
 notifier = pyinotify.Notifier(wm, handler)
