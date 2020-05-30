@@ -1,6 +1,9 @@
 dom4notify version 0.2
 ==========
 
+Warning! Deprecated!
+New version: https://github.com/Dedas/domnotify
+
 Linux only.
 
 A sleekXMPP notifier for Dominions 4
